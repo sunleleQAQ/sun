@@ -9,39 +9,38 @@ on:
       - main
 
 jobs:
-
   build:
-    # Windows is currently the only platform this action supports
     runs-on: windows-latest
 
     steps:
-
-      # Check-out repository
       - uses: actions/checkout@v4
 
-      # Setup Python
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.8.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
-          architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
+          python-version: '3.8.x'
+          architecture: 'x64'
           cache: 'pip'
+          
       - run: pip install -r requirements.txt
 
-      # Build python script into exe
       - uses: Nuitka/Nuitka-Action@main
         with:
           nuitka-version: main
           script-name: start.py
-          follow-imports: true
+          # 移除了 follow-imports，因为 standalone 模式默认就是全量打包
           mode: standalone
-          include-data-dir: res=res 
-          include-data-files: res/frpc.exe=res/frpc.exe
+          # 使用 extra-args 传递原生参数，跳过导致崩溃的 importlib 模块
+          extra-args: >-
+            --no-follow-imports-to=importlib
+            --windows-disable-console
+          # 使用绝对路径确保能找到文件
+          include-data-files: ${{ github.workspace }}/res/frpc.exe=res/frpc.exe
           enable-plugins: tk-inter
+          assume-yes-for-downloads: true
+          output-dir: build
 
-      # Uploads artifact
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: XCL II-Canary
-          path: build/start.dist/
-          compression-level: 0
+          path: build/
