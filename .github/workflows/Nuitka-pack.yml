@@ -1,5 +1,6 @@
-name: Nuitka-pack
+name: Nuitka-Pack
 
+# 触发条件：推送到 main 分支、创建 Pull Request、以及手动运行
 on:
   push:
     branches:
@@ -7,41 +8,61 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:  # 允许手动点击运行
 
 jobs:
-
   build:
-    # Windows is currently the only platform this action supports
     runs-on: windows-latest
 
     steps:
+      # 1. 检出代码
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      # Check-out repository
-      - uses: actions/checkout@v4
-
-      # Setup Python
-      - uses: actions/setup-python@v5
+      # 2. 设置 Python 环境
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.8.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
-          architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
-          cache: 'pip'
-      - run: pip install -r requirements.txt
+          python-version: '3.8' # 版本号
+          architecture: 'x64'
+          cache: 'pip'          # 启用 pip 缓存
+          cache-dependency-path: requirements.txt # 如果 requirements 变了才重新安装
 
-      # Build python script into exe
-      - uses: Nuitka/Nuitka-Action@main
+      # 3. 安装依赖
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 4. 【调试】列出当前目录结构，确保 res/frpc.exe 存在
+      - name: Debug File Structure
+        run: |
+          echo "当前工作目录: $env:GITHUB_WORKSPACE"
+          Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse
+
+      # 5. 使用 Nuitka 打包
+      - name: Build with Nuitka
+        uses: Nuitka/Nuitka-Action@main
         with:
-          nuitka-version: main
+          nuitka-version: 'stable' # 建议使用 stable，main 分支可能不稳定
           script-name: start.py
-          follow-imports: true
           mode: standalone
-          include-data-dir: res=res 
-          include-data-files: res/frpc.exe=res/frpc.exe
-          enable-plugins: tk-inter
+          follow-imports: true
+          # 插件：如果你的 start.py 用了 Tkinter 就保留，否则可以删掉
+          enable-plugins: tk-inter 
 
-      # Uploads artifact
+          # 关键：包含数据文件
+          # 注意 Windows 使用 ; 分隔多个参数，且最好用 $GITHUB_WORKSPACE 构建绝对路径
+          include-data-files: |
+            $GITHUB_WORKSPACE/res/frpc.exe=frpc.exe
+          # 如果还有其他资源文件夹，可以继续用 include-data-dir
+          include-data-dir: |
+            $GITHUB_WORKSPACE/res/=res/
+
+      # 6. 上传构建产物
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: XCL II-Canary
-          path: build/start.dist/
-          compression-level: 0
+          name: XCL-II-Canary-Win64
+          path: start.dist/ # Nuitka 默认输出在项目根目录下的 dist 文件夹
+          compression-level: 6 # 压缩级别，0-9，6 是默认值，比 0 更小
