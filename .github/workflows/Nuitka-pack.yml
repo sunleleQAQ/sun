@@ -1,83 +1,47 @@
-name: Windows Standalone Build
+name: Nuitka-pack
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  build-windows:
+
+  build:
+    # Windows is currently the only platform this action supports
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
 
     steps:
-      # 1. 拉取代码
-      - name: Checkout Code
-        uses: actions/checkout@v4
 
-      # 2. 设置 Python 环境
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      # Check-out repository
+      - uses: actions/checkout@v4
+
+      # Setup Python
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.8'
-          architecture: 'x64'
+          python-version: '3.8.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
+          architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
+          cache: 'pip'
+      - run: pip install -r requirements.txt
 
-      # 3. 安装依赖
-      - name: Install Dependencies
-        run: |
-          pip install --upgrade pip
-          if exist requirements.txt (pip install -r requirements.txt) else (echo "No requirements.txt found, skipping.")
-
-      # 4. 【关键】调试：强制使用 CMD 检查文件是否存在
-      - name: Debug - Check frpc.exe
-        shell: cmd
-        run: |
-          echo Current Directory Structure:
-          dir
-          echo.
-          echo Checking for res folder:
-          if exist "res" (
-            echo [OK] res folder found.
-            cd res && dir && cd ..
-          ) else (
-            echo [ERROR] res folder NOT FOUND in the root directory.
-            exit /b 1
-          )
-          echo.
-          echo Checking for frpc.exe specifically:
-          if exist "res\frpc.exe" (
-            echo [OK] frpc.exe found, proceeding...
-          ) else (
-            echo [ERROR] frpc.exe is missing!
-            exit /b 1
-          )
-
-      # 5. 打包核心步骤
-      - name: Compile with Nuitka
-        uses: Nuitka/Nuitka-Action@main
+      # Build python script into exe
+      - uses: Nuitka/Nuitka-Action@main
         with:
-          # 基础配置
           nuitka-version: main
           script-name: start.py
+          follow-imports: true
           mode: standalone
-          
-          # ⚙️ 核心参数修复：使用 extra-args 而不是 python-flag
-          extra-args: >-
-            --follow-imports
-            --windows-disable-console
-            
-          # 📁 数据文件处理：使用正斜杠或双反斜杠，推荐 ${{ github.workspace }}
-          include-data-files: ${{ github.workspace }}/res/frpc.exe=res/frpc.exe
-          
-          # 插件与输出
+          include-data-dir: res=res 
+          include-data-files: res/frpc.exe=res/frpc.exe
           enable-plugins: tk-inter
-          output-dir: dist
-          assume-yes-for-downloads: true
 
-      # 6. 上传结果
-      - name: Upload Executable
+      # Uploads artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Windows-Standalone-App
-          path: dist/
+          name: XCL II-Canary
+          path: build/start.dist/
+          compression-level: 0
