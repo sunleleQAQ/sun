@@ -7,18 +7,16 @@ on:
   pull_request:
     branches:
       - main
-  workflow_dispatch:  # 允许手动点击运行
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-      # 1. 检出代码
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2. 设置 Python 环境
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
@@ -26,38 +24,32 @@ jobs:
           architecture: 'x64'
           cache: 'pip'
 
-      # 3. 安装依赖
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
-      # 4. 【新增】调试步骤：打印文件结构，确保 res/frpc.exe 存在
+      # 【调试】打印文件结构，确保 res/frpc.exe 存在
       - name: Debug File Structure
         run: |
-          echo "当前目录文件列表："
-          ls -R
-          echo "检查 res 文件夹："
-          ls res/
+          echo "当前目录:"
+          dir
+          echo "res 目录内容:"
+          if exist res (dir res) else (echo res folder does not exist)
 
-      # 5. 使用 Nuitka 打包
       - name: Build with Nuitka
         uses: Nuitka/Nuitka-Action@main
         with:
           nuitka-version: main
           script-name: start.py
-          # 修正：使用 python-flag 传递 follow-imports 参数
-          python-flag: --follow-imports
           mode: standalone
-          # 修正：确保路径正确，使用 ${{ github.workspace }} 变量
+          # 修正点1: 使用 extra-args 传递原生 Nuitka 参数
+          extra-args: --follow-imports
+          # 修正点2: 使用 ${{ github.workspace }} 确保绝对路径正确
           include-data-files: ${{ github.workspace }}/res/frpc.exe=res/frpc.exe
           enable-plugins: tk-inter
-          # 建议：开启详细日志，方便排查问题
-          quiet: false
+          output-dir: build
 
-      # 6. 上传打包结果
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: XCL-II-Canary
-          path: start.dist/
-          # 建议：开启压缩，减小下载体积
-          compression-level: 6
+          path: build/
